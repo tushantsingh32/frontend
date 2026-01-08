@@ -1,0 +1,86 @@
+﻿import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+
+export default function Signup() {
+  const [userType, setUserType] = useState("patient");
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    aadhaarNumber: "",
+    file: null,
+  });
+  const hiddenFileInput = useRef(null);
+  const nav = useNavigate();
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const handleUserTypeChange = (e) => setUserType(e.target.value);
+  const handleClickUpload = () => hiddenFileInput.current.click();
+  const handleFileChange = (e) => setForm((f) => ({ ...f, file: e.target.files[0] }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const data = new FormData();
+    data.append("userType", userType);
+    data.append("fullName", form.fullName);
+    data.append("email", form.email);
+    data.append("password", form.password);
+    if (userType === "patient") data.append("aadhaarNumber", form.aadhaarNumber);
+    if (userType === "doctor" && form.file) data.append("file", form.file);
+
+    try {
+      const res = await fetch("http://localhost:5000/api/signup", { method: "POST", body: data });
+      const result = await res.json();
+      console.log("Signup result:", result);
+      alert("Signup successful — please login");
+      nav("/login");
+    } catch (err) {
+      console.error(err);
+      alert("Signup failed");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-sky-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white p-8 rounded-lg shadow">
+        <h2 className="text-2xl font-bold mb-6 text-center">Create an Account</h2>
+
+        <div className="mb-4">
+          <label className="block mb-1">Register as</label>
+          <select value={userType} onChange={handleUserTypeChange} className="w-full border rounded p-2">
+            <option value="patient">Patient</option>
+            <option value="doctor">Doctor</option>
+          </select>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input type="text" name="fullName" placeholder="Full Name" onChange={handleChange} required className="w-full p-3 border rounded" />
+          <input type="email" name="email" placeholder="Email" onChange={handleChange} required className="w-full p-3 border rounded" />
+          <input type="password" name="password" placeholder="Password" onChange={handleChange} required className="w-full p-3 border rounded" />
+
+          {userType === "patient" && (
+            <>
+              <input type="text" name="aadhaarNumber" placeholder="Aadhaar Number" onChange={handleChange} required className="w-full p-3 border rounded" />
+              <p className="text-sm text-slate-600">You will receive an OTP on your Aadhaar-linked mobile number for verification.</p>
+            </>
+          )}
+
+          {userType === "doctor" && (
+            <>
+              <input type="file" accept=".pdf,image/*" ref={hiddenFileInput} onChange={handleFileChange} className="hidden" />
+              <button type="button" onClick={handleClickUpload} className="w-full p-3 bg-sky-500 text-white rounded-lg hover:bg-sky-600">Upload Medical Degree Certificate</button>
+              {form.file && <p className="mt-2 text-sm text-slate-600">Selected file: {form.file.name}</p>}
+              <p className="text-sm text-slate-600">Certificate will be verified before account activation.</p>
+            </>
+          )}
+
+          <button type="submit" className="w-full p-3 bg-sky-600 text-white rounded mt-4">Create Account</button>
+        </form>
+      </div>
+    </div>
+  );
+}

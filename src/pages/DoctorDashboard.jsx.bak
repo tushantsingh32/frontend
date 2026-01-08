@@ -1,0 +1,97 @@
+﻿import React, { useEffect, useState } from "react";
+
+export default function DoctorDashboard(){
+  const [patients, setPatients] = useState([]);
+  const [selected, setSelected] = useState("");
+  const [records, setRecords] = useState([]);
+  const [file, setFile] = useState(null);
+  const [doctorEmail, setDoctorEmail] = useState(""); // we'll fetch after login ideally
+
+  // load patients list
+  useEffect(()=>{
+    fetch("http://localhost:5000/api/patients")
+      .then(r=>r.json()).then(d=>setPatients(d.patients || []))
+      .catch(e=>console.error(e));
+    // try to get logged in doctor email from localStorage (if you save it on login)
+    try {
+      const stored = localStorage.getItem("mp_user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        setDoctorEmail(u.email || "");
+      }
+    } catch {}
+  },[]);
+
+  const loadRecords = (patientEmail) => {
+    if (!patientEmail) return setRecords([]);
+    fetch("http://localhost:5000/api/records/" + encodeURIComponent(patientEmail))
+      .then(r=>r.json()).then(d=>setRecords(d.records || []))
+      .catch(e=>console.error(e));
+  };
+
+  const handleSelect = (e) => {
+    const em = e.target.value;
+    setSelected(em);
+    loadRecords(em);
+  };
+
+  const handleFileChange = (e) => setFile(e.target.files[0]);
+
+  const handleUpload = async () => {
+    if (!selected) return alert("Choose a patient");
+    if (!file) return alert("Choose a file to upload");
+    const fd = new FormData();
+    fd.append("doctorEmail", doctorEmail || "unknown-doctor@example.com");
+    fd.append("patientEmail", selected);
+    fd.append("file", file);
+    const res = await fetch("http://localhost:5000/api/uploadRecord", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.status === "success") {
+      // popup style notification (simple)
+      alert("Record uploaded successfully for " + selected);
+      // refresh
+      loadRecords(selected);
+    } else {
+      alert("Upload failed: " + (data.message || "Unknown"));
+    }
+  };
+
+  return (
+    <div className="min-h-screen p-8 bg-sky-50">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-2xl font-bold mb-4">Doctor Dashboard</h2>
+
+        <div className="bg-white p-4 rounded shadow">
+          <div className="mb-3">
+            <label className="block text-sm font-medium">Select Patient (by email)</label>
+            <select value={selected} onChange={handleSelect} className="w-full border rounded p-2">
+              <option value="">-- choose patient --</option>
+              {patients.map(p => <option key={p.email} value={p.email}>{p.fullName} — {p.email}</option>)}
+            </select>
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-sm font-medium">Upload a medical document for patient</label>
+            <input type="file" accept=".pdf,image/*" onChange={handleFileChange} className="mb-2" />
+            <button onClick={handleUpload} className="px-4 py-2 bg-sky-600 text-white rounded">Upload</button>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold">Patient Records</h3>
+          {records.length === 0 && <div className="p-4 bg-white rounded shadow mt-2">No records for selected patient.</div>}
+          <div className="grid gap-4 mt-3">
+            {records.map(r => (
+              <div key={r.id} className="p-3 bg-white rounded shadow">
+                <div className="font-semibold">{r.originalName}</div>
+                <div className="text-sm text-slate-600">Uploaded: {new Date(r.createdAt).toLocaleString()}</div>
+                {r.ipfsCid && <a href={"https://dweb.link/ipfs/"+r.ipfsCid} target="_blank" rel="noreferrer" className="text-sky-600 text-sm">View on IPFS</a>}
+                <div className="text-xs text-slate-500 mt-1">Verified: {r.verified ? "Yes" : "No"}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
